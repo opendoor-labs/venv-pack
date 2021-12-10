@@ -49,7 +49,10 @@ def build_parser():
                               "for linking ``python`` in the packaged "
                               "environment. Note that this is the path to the "
                               "*prefix*, not the path to the *executable* (e.g. "
-                              "``/usr/`` not ``/usr/lib/python3.6``)."))
+                              "``/usr/`` not ``/usr/bin/python3.6``)."))
+    parser.add_argument("--shebang",
+                        help=("If provided, executables will have their shebang "
+                              "headers rewritten to this value."))
     parser.add_argument("--compress-level",
                         type=int,
                         default=4,
@@ -118,6 +121,7 @@ def main(args=None, pack=pack):
              output=args.output,
              format=args.format,
              python_prefix=args.python_prefix,
+             shebang=args.shebang,
              force=args.force,
              compress_level=args.compress_level,
              zip_symlinks=args.zip_symlinks,

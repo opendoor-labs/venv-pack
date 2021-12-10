@@ -203,7 +203,7 @@ class Env(object):
 
         return output, format
 
-    def pack(self, output=None, format='infer', python_prefix=None,
+    def pack(self, output=None, format='infer', python_prefix=None, shebang=None,
              verbose=False, force=False, compress_level=4, zip_symlinks=False,
              zip_64=True):
         """Package the virtual environment into an archive file.
@@ -220,7 +220,10 @@ class Env(object):
             If provided, will be used as the new prefix path for linking
             ``python`` in the packaged environment. Note that this is the path
             to the *prefix*, not the path to the *executable* (e.g. ``/usr/``
-            not ``/usr/lib/python3.6``).
+            not ``/usr/bin/python3.6``).
+        shebang : str, optional
+            If provided, executables will have their shebang "headers rewritten
+            to this value.
         verbose : bool, optional
             If True, progress is reported to stdout. Default is False.
         force : bool, optional
@@ -263,7 +266,7 @@ class Env(object):
                              compress_level=compress_level,
                              zip_symlinks=zip_symlinks,
                              zip_64=zip_64) as arc:
-                    packer = Packer(self._context, arc, python_prefix)
+                    packer = Packer(self._context, arc, python_prefix, shebang)
                     with progressbar(self.files, enabled=verbose) as files:
                         try:
                             for f in files:
@@ -298,7 +301,7 @@ class File(namedtuple('File', ('source', 'target'))):
     pass
 
 
-def pack(prefix=None, output=None, format='infer', python_prefix=None,
+def pack(prefix=None, output=None, format='infer', python_prefix=None, shebang=None,
          verbose=False, force=False, compress_level=4, zip_symlinks=False,
          zip_64=True, filters=None):
     """Package an existing virtual environment into an archive file.
@@ -363,7 +366,7 @@ def pack(prefix=None, output=None, format='infer', python_prefix=None,
                 raise VenvPackException("Unknown filter of kind %r" % kind)
 
     return env.pack(output=output, format=format,
-                    python_prefix=python_prefix,
+                    python_prefix=python_prefix, shebang=shebang,
                     verbose=verbose, force=force,
                     compress_level=compress_level,
                     zip_symlinks=zip_symlinks, zip_64=zip_64)
@@ -534,7 +537,7 @@ def load_environment(prefix):
     return context, files
 
 
-def rewrite_shebang(data, target, prefix):
+def rewrite_shebang(data, prefix, new_shebang):
     """Rewrite a shebang header to ``#!usr/bin/env program...``.
 
     Returns
@@ -555,9 +558,12 @@ def rewrite_shebang(data, target, prefix):
 
         if executable.startswith(prefix_b):
             # shebang points inside environment, rewrite
-            executable_name = executable.decode('utf-8').split('/')[-1]
-            new_shebang = '#!/usr/bin/env %s%s' % (executable_name,
-                                                   options.decode('utf-8'))
+            if new_shebang:
+                new_shebang = "#!%s" % new_shebang
+            else:
+                executable_name = executable.decode('utf-8').split('/')[-1]
+                new_shebang = '#!/usr/bin/env %s%s' % (executable_name,
+                                                    options.decode('utf-8'))
             data = data.replace(shebang, new_shebang.encode('utf-8'))
 
         return data, True
@@ -597,10 +603,11 @@ def check_python_prefix(python_prefix, context):
 
 
 class Packer(object):
-    def __init__(self, context, archive, python_prefix):
+    def __init__(self, context, archive, python_prefix, shebang):
         self.context = context
         self.prefix = context.prefix
         self.archive = archive
+        self.shebang = shebang
 
         python_prefix, rewrites = check_python_prefix(python_prefix, context)
         self.python_prefix = python_prefix
@@ -620,7 +627,7 @@ class Packer(object):
               (os.path.isdir(file.source) or os.path.islink(file.source))):
             with open(file.source, 'rb') as fil:
                 data = fil.read()
-            data, _ = rewrite_shebang(data, file.target, self.prefix)
+            data, _ = rewrite_shebang(data, self.prefix, self.shebang)
             self.archive.add_bytes(file.source, data, file.target)
         else:
             self.archive.add(file.source, file.target)
