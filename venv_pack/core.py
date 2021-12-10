@@ -619,7 +619,7 @@ class Packer(object):
             for orig, new in self.rewrites:
                 if link_target.startswith(orig):
                     self.archive.add_link(file.source,
-                                          link_target.replace(orig, new),
+                                          new,
                                           file.target)
                     return
             self.archive.add(file.source, file.target)
