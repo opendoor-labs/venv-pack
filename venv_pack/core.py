@@ -399,7 +399,13 @@ def check_venv(prefix):
         for line in fil:
             key, val = line.split('=')
             if key.strip().lower() == 'home':
-                orig_prefix = os.path.dirname(val.strip())
+                # The home key in the pyvenv.cfg file created by venv points to the
+                # directory containing the Python executable, however the pyvenv.cfg
+                # file created by Poetry points to the directory 1 level up from the
+                # executable.
+                orig_prefix = val.strip()
+                if orig_prefix.endswith("bin"):
+                    orig_prefix = os.path.dirname(orig_prefix)
                 break
         else:  # pragma: nocover
             raise VenvPackException("%r is not a valid virtual "
